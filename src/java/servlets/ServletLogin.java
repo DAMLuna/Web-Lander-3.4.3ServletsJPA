@@ -53,42 +53,39 @@ public class ServletLogin extends HttpServlet {
          * para la tabla AndlunUserGame y AndlunRegistry.
          */
         AndlunUserGameJpaController userJpaContr = new AndlunUserGameJpaController(emf);
-        List<AndlunUserGame> usergame = userJpaContr.findAndlunUserGameEntities();
+
         AndlunRegistryJpaController regJpaContr = new AndlunRegistryJpaController(emf);
         List<AndlunRegistry> listRegPer = regJpaContr.findAndlunRegistryEntities();
         AndlunUserGame jpauser = new AndlunUserGame();
-        String comprCookie;
+        String comprCookie, nickCookie = "", passCookie = "";
         int iduser = 0;
         boolean nickCompr = false, passwCompr = false;
         /**
          * Comprobamos que si tenemos cookies de login guardadas, en el caso de
-         * que tengamos las usaremos para conectar a la pagina principal del usuario
-         * si no nos mantiene en la página de Login.
+         * que tengamos las usaremos para conectar a la pagina principal del
+         * usuario si no nos mantiene en la página de Login.
          */
         Cookie ck[] = request.getCookies();
         for (Cookie cookie : ck) {
-            comprCookie = cookie.getValue();
-            for (AndlunUserGame andlunUserGame : usergame) {
-                if (comprCookie.contentEquals(andlunUserGame.getNameUser())) {
-                    nickCompr = true;
-                    iduser = andlunUserGame.getIdUser();
-                    String nick = comprCookie.toString();
-                    request.setAttribute("nombreuser", nick);
-                }
-                if (comprCookie.contentEquals(andlunUserGame.getPasswd())) {
-                    passwCompr = true;
-                }
+            comprCookie = cookie.getName();
+            if (comprCookie.contentEquals("nick")) {
+                nickCookie = cookie.getValue();
+            } else if (comprCookie.contentEquals("passwd")) {
+                passCookie = cookie.getValue();
             }
         }
-        if (nickCompr == true && passwCompr == true) {
-            /**
-             * Comandos para enviar listas de consultas al JSP.
-             */
-            request.setAttribute("scoresPers", listRegPer(iduser));
-            request.setAttribute("scoresGlob", listRegGlob());
-            request.setAttribute("dateEnd", listRegDEnd());
-            RequestDispatcher a = request.getRequestDispatcher("panelprincipal.jsp");
-            a.forward(request, response);
+        List<AndlunUserGame> usergame = userAndPass(nickCookie, passCookie);
+        if (usergame != null && !usergame.isEmpty()) {
+            for (AndlunUserGame andlunUserGame : usergame) {
+                iduser = andlunUserGame.getIdUser();
+                String nick = nickCookie.toString();
+                request.setAttribute("nombreuser", nick);
+                request.setAttribute("scoresPers", listRegPer(iduser));
+                request.setAttribute("scoresGlob", listRegGlob());
+                request.setAttribute("dateEnd", listRegDEnd());
+                RequestDispatcher a = request.getRequestDispatcher("panelprincipal.jsp");
+                a.forward(request, response);
+            }
         } else {
             RequestDispatcher a = request.getRequestDispatcher("index2.jsp");
             a.forward(request, response);
@@ -113,13 +110,13 @@ public class ServletLogin extends HttpServlet {
              * para la tabla AndlunUserGame y AndlunRegistry.
              */
             AndlunUserGameJpaController userJpaContr = new AndlunUserGameJpaController(emf);
-            List<AndlunUserGame> usergame = userJpaContr.findAndlunUserGameEntities();
             AndlunRegistryJpaController regJpaContr = new AndlunRegistryJpaController(emf);
             List<AndlunRegistry> listRegPer = regJpaContr.findAndlunRegistryEntities();
             //La clase Encriptación contiene el método necesario para encriptar las contraseñas que introducimos para dar seguridad.
             Encriptacion encript = new Encriptacion();
             String nick = request.getParameter("nick").toLowerCase();
             String pass = encript.md5(request.getParameter("passwd"));
+            List<AndlunUserGame> usergame = userAndPass(nick, pass);
             int iduser = 0;
             boolean nickCompr = false;
             boolean passwCompr = false;
@@ -129,11 +126,9 @@ public class ServletLogin extends HttpServlet {
              */
             if (usergame != null && !usergame.isEmpty()) {
                 for (AndlunUserGame andlunUserGame : usergame) {
-                    if (nick.contentEquals(andlunUserGame.getNameUser()) && pass.contentEquals(andlunUserGame.getPasswd())) {
-                        nickCompr = true;
-                        iduser = andlunUserGame.getIdUser();
-                        passwCompr = true;
-                    }
+                    nickCompr = true;
+                    iduser = andlunUserGame.getIdUser();
+                    passwCompr = true;
                 }
                 /**
                  * Sí lo encuentra genera cookies con la información y genera
@@ -168,14 +163,14 @@ public class ServletLogin extends HttpServlet {
 
                     }
                 }
-            }else{
+            } else {
                 response.setContentType("text/html;charset=UTF-8");
-                    try (PrintWriter out = response.getWriter()) {
-                        /* TODO output your page here. You may use following sample code. */
-                        request.getRequestDispatcher("index2.jsp").include(request, response);
-                        out.println("<p style='color:white;text-align: center'>No hay usuarios. Se el primero en unirte a la familia<p>");
+                try (PrintWriter out = response.getWriter()) {
+                    /* TODO output your page here. You may use following sample code. */
+                    request.getRequestDispatcher("index2.jsp").include(request, response);
+                    out.println("<p style='color:white;text-align: center'>No hay usuarios. Se el primero en unirte a la familia<p>");
 
-                    }
+                }
             }
         } catch (NoSuchAlgorithmException ex) {
             Logger.getLogger(ServletLogin.class.getName()).log(Level.SEVERE, null, ex);
@@ -211,6 +206,14 @@ public class ServletLogin extends HttpServlet {
         EntityManager em = emf.createEntityManager();
         @SuppressWarnings("unchecked")
         TypedQuery<AndlunRegistry> query = em.createNamedQuery("AndlunRegistry.findByEndDateOrder", AndlunRegistry.class).setMaxResults(10);
+        return query.getResultList();
+    }
+
+    public List<AndlunUserGame> userAndPass(String nameU, String pssw) {
+        EntityManager em = emf.createEntityManager();
+        @SuppressWarnings("unchecked")
+        TypedQuery<AndlunUserGame> query = em.createNamedQuery("AndlunUserGame.findByNameUserandPass", AndlunUserGame.class);
+        query.setParameter("nameUser", nameU).setParameter("passwd", pssw);
         return query.getResultList();
     }
 
